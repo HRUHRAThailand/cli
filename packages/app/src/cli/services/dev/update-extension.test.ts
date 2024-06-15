@@ -1,6 +1,12 @@
 import {reloadExtensionConfig, updateExtensionDraft} from './update-extension.js'
-import {testDeveloperPlatformClient, testPaymentExtensions, testUIExtension} from '../../models/app/app.test-data.js'
-import {parseConfigurationFile, parseConfigurationObject} from '../../models/app/loader.js'
+import {
+  placeholderAppConfiguration,
+  testDeveloperPlatformClient,
+  testPaymentExtensions,
+  testThemeExtensions,
+  testUIExtension,
+} from '../../models/app/app.test-data.js'
+import {parseConfigurationFile, parseConfigurationObjectAgainstSpecification} from '../../models/app/loader.js'
 import {DeveloperPlatformClient} from '../../utilities/developer-platform-client.js'
 import {ExtensionUpdateDraftInput} from '../../api/graphql/update_draft.js'
 import {inTemporaryDirectory, mkdir, writeFile} from '@shopify/cli-kit/node/fs'
@@ -15,7 +21,7 @@ vi.mock('../../models/app/loader.js', async () => {
   return {
     ...actual,
     parseConfigurationFile: vi.fn(),
-    parseConfigurationObject: vi.fn(),
+    parseConfigurationObjectAgainstSpecification: vi.fn(),
   }
 })
 
@@ -52,6 +58,7 @@ describe('updateExtensionDraft()', () => {
         registrationId,
         stdout,
         stderr,
+        appConfiguration: placeholderAppConfiguration,
       })
 
       expect(developerPlatformClient.updateExtension).toHaveBeenCalledWith({
@@ -82,6 +89,7 @@ describe('updateExtensionDraft()', () => {
       registrationId,
       stdout,
       stderr,
+      appConfiguration: placeholderAppConfiguration,
     })
 
     expect(developerPlatformClient.updateExtension).toHaveBeenCalledWith({
@@ -124,6 +132,7 @@ describe('updateExtensionDraft()', () => {
         registrationId,
         stdout,
         stderr,
+        appConfiguration: placeholderAppConfiguration,
       })
 
       expect(developerPlatformClient.updateExtension).toHaveBeenCalledWith({
@@ -139,6 +148,41 @@ describe('updateExtensionDraft()', () => {
         `Draft updated successfully for extension: ${mockExtension.localIdentifier}`,
         stdout,
       )
+    })
+  })
+
+  test('updates draft successfully for theme app extension', async () => {
+    const developerPlatformClient: DeveloperPlatformClient = testDeveloperPlatformClient()
+    await inTemporaryDirectory(async (tmpDir) => {
+      const mockExtension = await testThemeExtensions(tmpDir)
+
+      const filepath = 'blocks/block1.liquid'
+      const content = 'test content'
+      const base64Content = Buffer.from(content).toString('base64')
+      await mkdir(joinPath(tmpDir, 'blocks'))
+      await writeFile(joinPath(tmpDir, filepath), content)
+
+      await updateExtensionDraft({
+        extension: mockExtension,
+        developerPlatformClient,
+        apiKey,
+        registrationId,
+        stdout,
+        stderr,
+        appConfiguration: placeholderAppConfiguration,
+      })
+
+      expect(developerPlatformClient.updateExtension).toHaveBeenCalledWith({
+        apiKey,
+        context: '',
+        handle: mockExtension.handle,
+        registrationId,
+        config: JSON.stringify({
+          theme_extension: {
+            files: {[filepath]: base64Content},
+          },
+        }),
+      })
     })
   })
 
@@ -172,6 +216,7 @@ describe('updateExtensionDraft()', () => {
         registrationId,
         stdout,
         stderr,
+        appConfiguration: placeholderAppConfiguration,
       })
 
       expect(stderr.write).toHaveBeenCalledWith('Error while updating drafts: Error1, Error2')
@@ -224,7 +269,7 @@ another = "setting"
         type: 'web_pixel_extension',
       } as any)
 
-      vi.mocked(parseConfigurationObject).mockResolvedValue(parsedConfig)
+      vi.mocked(parseConfigurationObjectAgainstSpecification).mockResolvedValue(parsedConfig)
 
       await writeFile(mockExtension.outputPath, 'test content')
 

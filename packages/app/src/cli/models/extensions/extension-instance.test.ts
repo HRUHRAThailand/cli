@@ -1,3 +1,4 @@
+import {SingleWebhookSubscriptionType} from './specifications/app_config_webhook_schemas/webhooks_schema.js'
 import {
   testApp,
   testAppConfigExtensions,
@@ -6,10 +7,10 @@ import {
   testThemeExtensions,
   testPaymentExtensions,
   testUIExtension,
-  testWebPixelExtension,
-  testWebhookExtensions,
   testFlowActionExtension,
   testDeveloperPlatformClient,
+  testSingleWebhookSubscriptionExtension,
+  placeholderAppConfiguration,
 } from '../app/app.test-data.js'
 import {FunctionConfigType} from '../extensions/specifications/function.js'
 import {ExtensionBuildOptions} from '../../services/build/extension.js'
@@ -17,6 +18,8 @@ import {DeveloperPlatformClient} from '../../utilities/developer-platform-client
 import {joinPath} from '@shopify/cli-kit/node/path'
 import {describe, expect, test} from 'vitest'
 import {inTemporaryDirectory, readFile} from '@shopify/cli-kit/node/fs'
+import {slugify} from '@shopify/cli-kit/common/string'
+import {hashString} from '@shopify/cli-kit/node/crypto'
 import {Writable} from 'stream'
 
 const developerPlatformClient: DeveloperPlatformClient = testDeveloperPlatformClient()
@@ -110,48 +113,6 @@ describe('watchPaths', async () => {
   })
 })
 
-describe('isDraftable', () => {
-  test('returns false for theme extensions', async () => {
-    const extensionInstance = await testThemeExtensions()
-
-    const got1 = extensionInstance.isDraftable()
-
-    expect(got1).toBe(false)
-  })
-
-  test('returns false for app config extensions', async () => {
-    const extensionInstance = await testAppConfigExtensions()
-
-    const got1 = extensionInstance.isDraftable()
-
-    expect(got1).toBe(true)
-  })
-
-  test('returns true for web pixel extensions', async () => {
-    const extensionInstance = await testWebPixelExtension()
-
-    const got = extensionInstance.isDraftable()
-
-    expect(got).toBe(true)
-  })
-
-  test('returns true for ui extensions', async () => {
-    const extensionInstance = await testUIExtension()
-
-    const got = extensionInstance.isDraftable()
-
-    expect(got).toBe(true)
-  })
-
-  test('returns true for functions', async () => {
-    const extensionInstance = await testFunctionExtension()
-
-    const got = extensionInstance.isDraftable()
-
-    expect(got).toBe(true)
-  })
-})
-
 describe('build', async () => {
   test('creates a valid JS file for tax calculation extensions', async () => {
     await inTemporaryDirectory(async (tmpDir) => {
@@ -180,7 +141,11 @@ describe('deployConfig', async () => {
   test('returns deployConfig when defined', async () => {
     const extensionInstance = await testThemeExtensions()
 
-    const got = await extensionInstance.deployConfig({developerPlatformClient, apiKey: 'apiKey'})
+    const got = await extensionInstance.deployConfig({
+      developerPlatformClient,
+      apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
+    })
 
     expect(got).toMatchObject({theme_extension: {files: {}}})
   })
@@ -188,7 +153,11 @@ describe('deployConfig', async () => {
   test('returns transformed config when defined', async () => {
     const extensionInstance = await testAppConfigExtensions()
 
-    const got = await extensionInstance.deployConfig({developerPlatformClient, apiKey: 'apiKey'})
+    const got = await extensionInstance.deployConfig({
+      developerPlatformClient,
+      apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
+    })
 
     expect(got).toMatchObject({embedded: true})
   })
@@ -196,7 +165,11 @@ describe('deployConfig', async () => {
   test('returns undefined when the transformed config is empty', async () => {
     const extensionInstance = await testAppConfigExtensions(true)
 
-    const got = await extensionInstance.deployConfig({developerPlatformClient, apiKey: 'apiKey'})
+    const got = await extensionInstance.deployConfig({
+      developerPlatformClient,
+      apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
+    })
 
     expect(got).toBeUndefined()
   })
@@ -215,6 +188,7 @@ describe('bundleConfig', async () => {
       },
       developerPlatformClient,
       apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
     })
 
     expect(got).toEqual(
@@ -237,6 +211,7 @@ describe('bundleConfig', async () => {
       },
       developerPlatformClient,
       apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
     })
 
     expect(got).toEqual(
@@ -259,32 +234,12 @@ describe('bundleConfig', async () => {
       },
       developerPlatformClient,
       apiKey: 'apiKey',
+      appConfiguration: placeholderAppConfiguration,
     })
 
     expect(got).toEqual(
       expect.objectContaining({
         uuid: 'uuid',
-      }),
-    )
-  })
-
-  test('returns arrays formatted properly inside the config', async () => {
-    const extensionInstance = await testWebhookExtensions()
-
-    const got = await extensionInstance.bundleConfig({
-      identifiers: {
-        extensions: {},
-        extensionIds: {},
-        app: 'My app',
-        extensionsNonUuidManaged: {webhooks: 'uuid'},
-      },
-      developerPlatformClient,
-      apiKey: 'apiKey',
-    })
-
-    expect(got).toEqual(
-      expect.objectContaining({
-        config: '{"subscriptions":[{"uri":"https://my-app.com/webhooks","topic":"orders/delete"}]}',
       }),
     )
   })
@@ -377,5 +332,42 @@ describe('draftMessages', async () => {
 
     // Then
     expect(result).toBeUndefined()
+  })
+
+  describe('buildHandle', async () => {
+    test('extensions handle is either its handle or name when specification uidStrategy is uuid', async () => {
+      // Given
+      const extensionInstance = await testUIExtension()
+
+      const result = extensionInstance.configuration.handle ?? slugify(extensionInstance.configuration.name ?? '')
+      // Then
+      expect(extensionInstance.handle).toBe(result)
+    })
+
+    test('extensions handle is its identifier when specification uidStrategy is single', async () => {
+      // Given
+      const extensionInstance = await testAppConfigExtensions()
+
+      // When
+      const result = slugify(extensionInstance.specification.identifier)
+
+      // Then
+      expect(extensionInstance.handle).toBe(result)
+    })
+
+    test('extensions handle is a hashString when specification uidStrategy is dynamic and it is a webhook subscription extension', async () => {
+      // Given
+      const extensionInstance = await testSingleWebhookSubscriptionExtension()
+
+      // When
+      const subscription = extensionInstance.configuration as unknown as SingleWebhookSubscriptionType
+      let result = ''
+      if (subscription) {
+        result = hashString(subscription.topic + subscription.uri + subscription.filter).substring(0, 30)
+      }
+
+      // Then
+      expect(extensionInstance.handle).toBe(result)
+    })
   })
 })

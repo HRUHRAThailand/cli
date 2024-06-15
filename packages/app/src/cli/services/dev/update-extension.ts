@@ -1,12 +1,14 @@
 import {ExtensionUpdateDraftInput, ExtensionUpdateSchema} from '../../api/graphql/update_draft.js'
+import {AppConfigurationWithoutPath} from '../../models/app/app.js'
 import {
   loadConfigurationFileContent,
   parseConfigurationFile,
-  parseConfigurationObject,
+  parseConfigurationObjectAgainstSpecification,
 } from '../../models/app/loader.js'
 import {ExtensionInstance} from '../../models/extensions/extension-instance.js'
 import {ExtensionsArraySchema, UnifiedSchema} from '../../models/extensions/schemas.js'
 import {DeveloperPlatformClient} from '../../utilities/developer-platform-client.js'
+import {themeExtensionConfig} from '../deploy/theme-extension-config.js'
 import {AbortError} from '@shopify/cli-kit/node/error'
 import {readFile} from '@shopify/cli-kit/node/fs'
 import {OutputMessage, outputInfo} from '@shopify/cli-kit/node/output'
@@ -21,6 +23,7 @@ interface UpdateExtensionDraftOptions {
   registrationId: string
   stdout: Writable
   stderr: Writable
+  appConfiguration: AppConfigurationWithoutPath
 }
 
 export async function updateExtensionDraft({
@@ -30,6 +33,7 @@ export async function updateExtensionDraft({
   registrationId,
   stdout,
   stderr,
+  appConfiguration,
 }: UpdateExtensionDraftOptions) {
   let encodedFile: string | undefined
   if (extension.features.includes('esbuild')) {
@@ -38,7 +42,13 @@ export async function updateExtensionDraft({
     encodedFile = Buffer.from(content).toString('base64')
   }
 
-  const config = (await extension.deployConfig({apiKey, developerPlatformClient})) || {}
+  let config
+  if (extension.isThemeExtension) {
+    // When updating just the theme extension draft, upload the files as part of the config.
+    config = await themeExtensionConfig(extension)
+  } else {
+    config = (await extension.deployConfig({apiKey, developerPlatformClient, appConfiguration})) || {}
+  }
 
   const extensionInput: ExtensionUpdateDraftInput = {
     apiKey,
@@ -98,8 +108,8 @@ export async function reloadExtensionConfig({extension}: UpdateExtensionConfigOp
     configObject = {...configuration, ...extensionConfig}
   }
 
-  const newConfig = await parseConfigurationObject(
-    extension.specification.schema,
+  const newConfig = await parseConfigurationObjectAgainstSpecification(
+    extension.specification,
     extension.configurationPath,
     configObject,
     abort,

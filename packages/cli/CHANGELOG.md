@@ -1,5 +1,56 @@
 # @shopify/cli
 
+## 3.61.0
+
+### Minor Changes
+
+- 95d534387: Rename unreleased default_placement_reference extension property to default_placement.
+- d85e7adb4: Include hydrogen commands in the bundle
+
+### Patch Changes
+
+- Updated dependencies [caa015042]
+- Updated dependencies [79a951f3c]
+- Updated dependencies [79a951f3c]
+- Updated dependencies [87a6cc590]
+- Updated dependencies [0c117d0f4]
+- Updated dependencies [009a43078]
+- Updated dependencies [b2b041f56]
+  - @shopify/app@3.61.0
+  - @shopify/cli-kit@3.61.0
+  - @shopify/plugin-cloudflare@3.61.0
+  - @shopify/plugin-did-you-mean@3.61.0
+  - @shopify/theme@3.61.0
+
+## 3.60.0
+
+### Minor Changes
+
+- d4d493e25: Adds validations for editor extension collection
+- fb085c32c: Adds localization support for editor extension collection
+- 427d9dc0f: Webhook trigger now reads from the configuration instead of .env and accepts more flags
+
+### Patch Changes
+
+- 6e68a82c1: Fix bug with plugins installation
+- Updated dependencies [ea177a190]
+- Updated dependencies [d5a05e7cc]
+- Updated dependencies [2ac5142dc]
+- Updated dependencies [d5a05e7cc]
+- Updated dependencies [031aa2d0b]
+- Updated dependencies [0ff96c777]
+- Updated dependencies [0c8800c87]
+- Updated dependencies [5343a3672]
+- Updated dependencies [5bca2e386]
+- Updated dependencies [601020909]
+- Updated dependencies [427d9dc0f]
+- Updated dependencies [fed261a9b]
+  - @shopify/theme@3.60.0
+  - @shopify/app@3.60.0
+  - @shopify/cli-kit@3.60.0
+  - @shopify/plugin-cloudflare@3.60.0
+  - @shopify/plugin-did-you-mean@3.60.0
+
 ## 3.59.0
 
 ### Minor Changes

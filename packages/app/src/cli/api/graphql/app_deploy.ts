@@ -47,6 +47,7 @@ export const AppDeploy = gql`
 `
 
 export interface AppModuleSettings {
+  uid?: string
   uuid?: string
   specificationIdentifier?: string
   config: string
@@ -67,6 +68,7 @@ export interface AppDeployVariables {
 interface ErrorDetail {
   extension_id: number
   extension_title: string
+  specification_identifier: string
 }
 
 export interface AppDeploySchema {

@@ -2,12 +2,10 @@ import {themeExtensionConfig as generateThemeExtensionConfig} from './theme-exte
 import {Identifiers, IdentifiersExtensions} from '../../models/app/identifiers.js'
 import {ExtensionUpdateDraftInput, ExtensionUpdateSchema} from '../../api/graphql/update_draft.js'
 import {AppDeploySchema, AppModuleSettings} from '../../api/graphql/app_deploy.js'
-import {
-  GenerateSignedUploadUrlSchema,
-  GenerateSignedUploadUrlVariables,
-} from '../../api/graphql/generate_signed_upload_url.js'
+
 import {ExtensionInstance} from '../../models/extensions/extension-instance.js'
-import {AppDeployOptions, DeveloperPlatformClient} from '../../utilities/developer-platform-client.js'
+import {AppDeployOptions, AssetUrlSchema, DeveloperPlatformClient} from '../../utilities/developer-platform-client.js'
+import {MinimalAppIdentifiers} from '../../models/organization.js'
 import {FunctionUploadUrlGenerateResponse} from '@shopify/cli-kit/node/api/partners'
 import {readFile, readFileSync} from '@shopify/cli-kit/node/fs'
 import {fetch, formData} from '@shopify/cli-kit/node/http'
@@ -122,7 +120,11 @@ export async function uploadExtensionsBundle(
   let deployError
 
   if (options.bundlePath) {
-    signedURL = await getExtensionUploadURL(options.developerPlatformClient, options.apiKey)
+    signedURL = await getExtensionUploadURL(options.developerPlatformClient, {
+      id: options.apiKey,
+      apiKey: options.apiKey,
+      organizationId: options.organizationId,
+    })
 
     const form = formData()
     const buffer = readFileSync(options.bundlePath)
@@ -263,12 +265,20 @@ function cliErrorsSections(errors: AppDeploySchema['appDeploy']['userErrors'], i
     const errorMessage = field === 'base' ? error.message : `${field}: ${error.message}`
 
     const remoteTitle = error.details.find((detail) => typeof detail.extension_title !== 'undefined')?.extension_title
+    const specificationIdentifier = error.details.find(
+      (detail) => typeof detail.specification_identifier !== 'undefined',
+    )?.specification_identifier
     const extensionIdentifier = error.details
       .find((detail) => typeof detail.extension_id !== 'undefined')
       ?.extension_id.toString()
 
     const handle = Object.keys(identifiers).find((key) => identifiers[key] === extensionIdentifier)
-    const extensionName = handle ?? remoteTitle
+    let extensionName = handle ?? remoteTitle
+
+    if (specificationIdentifier === 'webhook_subscription') {
+      // The remote title is a random identifier in this case
+      extensionName = 'Webhook Subscription'
+    }
 
     const existingSection = sections.find((section) => section.title === extensionName)
 
@@ -354,22 +364,18 @@ function partnersErrorsSections(errors: AppDeploySchema['appDeploy']['userErrors
  * It generates a URL to upload an app bundle.
  * @param apiKey - The application API key
  */
-export async function getExtensionUploadURL(developerPlatformClient: DeveloperPlatformClient, apiKey: string) {
-  const variables: GenerateSignedUploadUrlVariables = {
-    apiKey,
-    bundleFormat: 1,
-  }
+export async function getExtensionUploadURL(
+  developerPlatformClient: DeveloperPlatformClient,
+  app: MinimalAppIdentifiers,
+) {
+  const result: AssetUrlSchema = await handlePartnersErrors(() => developerPlatformClient.generateSignedUploadUrl(app))
 
-  const result: GenerateSignedUploadUrlSchema = await handlePartnersErrors(() =>
-    developerPlatformClient.generateSignedUploadUrl(variables),
-  )
-
-  if (result.appVersionGenerateSignedUploadUrl?.userErrors?.length > 0) {
-    const errors = result.appVersionGenerateSignedUploadUrl.userErrors.map((error) => error.message).join(', ')
+  if (result.userErrors?.length > 0) {
+    const errors = result.userErrors.map((error) => error.message).join(', ')
     throw new AbortError(errors)
   }
 
-  return result.appVersionGenerateSignedUploadUrl.signedUploadUrl
+  return result.assetUrl
 }
 
 export async function uploadWasmBlob(

@@ -2,7 +2,9 @@ import {
   CustomCreditCardPaymentsAppExtensionConfigType,
   customCreditCardPaymentsAppExtensionDeployConfig,
   CustomCreditCardPaymentsAppExtensionSchema,
+  MAX_CHECKOUT_PAYMENT_METHOD_FIELDS,
 } from './custom_credit_card_payments_app_extension_schema.js'
+import {buildCheckoutPaymentMethodFields} from './payments_app_extension_test_helper.js'
 import {describe, expect, test} from 'vitest'
 import {zod} from '@shopify/cli-kit/node/schema'
 
@@ -18,6 +20,11 @@ const config: CustomCreditCardPaymentsAppExtensionConfigType = {
   merchant_label: 'some-label',
   supported_countries: ['CA'],
   supported_payment_methods: ['visa'],
+  supported_buyer_contexts: [
+    {currency: 'USD'},
+    {currency: 'CAD', countries: ['CA']},
+    {currency: 'EUR', countries: ['DE', 'FR']},
+  ],
   supports_3ds: true,
   test_mode_available: true,
   multiple_capture: true,
@@ -64,6 +71,71 @@ describe('CustomCreditCardPaymentsAppExtensionSchema', () => {
       ]),
     )
   })
+
+  test('returns an error if encryption certificate fingerprint is blank', async () => {
+    // When/Then
+    expect(() =>
+      CustomCreditCardPaymentsAppExtensionSchema.parse({
+        ...config,
+        encryption_certificate_fingerprint: '',
+      }),
+    ).toThrowError(
+      new zod.ZodError([
+        {
+          code: zod.ZodIssueCode.too_small,
+          minimum: 1,
+          type: 'string',
+          inclusive: true,
+          exact: false,
+          message: "Encryption certificate fingerprint can't be blank",
+          path: ['encryption_certificate_fingerprint'],
+        },
+      ]),
+    )
+  })
+
+  test('returns an error if encryption certificate fingerprint is not present', async () => {
+    // When/Then
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const {encryption_certificate_fingerprint, ...rest} = config
+    expect(() =>
+      CustomCreditCardPaymentsAppExtensionSchema.parse({
+        ...rest,
+      }),
+    ).toThrowError(
+      new zod.ZodError([
+        {
+          code: 'invalid_type',
+          expected: 'string',
+          received: 'undefined',
+          path: ['encryption_certificate_fingerprint'],
+          message: 'Required',
+        },
+      ]),
+    )
+  })
+
+  test('returns an error if checkout_payment_method_fields has too many fields', async () => {
+    // When/Then
+    expect(() =>
+      CustomCreditCardPaymentsAppExtensionSchema.parse({
+        ...config,
+        checkout_payment_method_fields: buildCheckoutPaymentMethodFields(MAX_CHECKOUT_PAYMENT_METHOD_FIELDS + 1),
+      }),
+    ).toThrowError(
+      new zod.ZodError([
+        {
+          code: zod.ZodIssueCode.too_big,
+          maximum: MAX_CHECKOUT_PAYMENT_METHOD_FIELDS,
+          type: 'array',
+          inclusive: true,
+          exact: false,
+          message: `The extension can't have more than ${MAX_CHECKOUT_PAYMENT_METHOD_FIELDS} checkout_payment_method_fields`,
+          path: ['checkout_payment_method_fields'],
+        },
+      ]),
+    )
+  })
 })
 
 describe('customCreditCardPaymentsAppExtensionDeployConfig', () => {
@@ -83,6 +155,7 @@ describe('customCreditCardPaymentsAppExtensionDeployConfig', () => {
       supports_3ds: config.supports_3ds,
       supported_countries: config.supported_countries,
       supported_payment_methods: config.supported_payment_methods,
+      supported_buyer_contexts: config.supported_buyer_contexts,
       encryption_certificate_fingerprint: config.encryption_certificate_fingerprint,
       test_mode_available: config.test_mode_available,
       multiple_capture: config.multiple_capture,

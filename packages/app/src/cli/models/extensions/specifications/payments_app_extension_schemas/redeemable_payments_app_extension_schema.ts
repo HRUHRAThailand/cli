@@ -2,6 +2,7 @@ import {
   BasePaymentsAppExtensionSchema,
   BasePaymentsAppExtensionDeployConfigType,
   BuyerLabelSchema,
+  SupportedBuyerContextsSchema,
 } from './base_payments_app_extension_schema.js'
 import {ExtensionRegistration} from '../../../../api/graphql/all_app_extension_registrations.js'
 import {extensionUuidToHandle} from '../transform/extension_uuid_to_handle.js'
@@ -11,22 +12,23 @@ export type RedeemablePaymentsAppExtensionConfigType = zod.infer<typeof Redeemab
 
 export const REDEEMABLE_TARGET = 'payments.redeemable.render'
 
-export const RedeemablePaymentsAppExtensionSchema = BasePaymentsAppExtensionSchema.merge(BuyerLabelSchema).extend({
-  targeting: zod.array(zod.object({target: zod.literal(REDEEMABLE_TARGET)})).length(1),
-  api_version: zod.string(),
-  balance_url: zod.string().url(),
-  redeemable_type: zod.literal('gift-card'),
-  ui_extension_handle: zod.string().optional(),
-  checkout_payment_method_fields: zod
-    .array(
-      zod.object({
-        type: zod.union([zod.literal('string'), zod.literal('number'), zod.literal('boolean')]),
-        required: zod.boolean(),
-        key: zod.string(),
-      }),
-    )
-    .optional(),
-})
+export const RedeemablePaymentsAppExtensionSchema = BasePaymentsAppExtensionSchema.merge(BuyerLabelSchema)
+  .merge(SupportedBuyerContextsSchema)
+  .extend({
+    targeting: zod.array(zod.object({target: zod.literal(REDEEMABLE_TARGET)})).length(1),
+    api_version: zod.string(),
+    balance_url: zod.string().url(),
+    ui_extension_handle: zod.string().optional(),
+    checkout_payment_method_fields: zod
+      .array(
+        zod.object({
+          type: zod.union([zod.literal('string'), zod.literal('number'), zod.literal('boolean')]),
+          required: zod.boolean(),
+          key: zod.string(),
+        }),
+      )
+      .optional(),
+  })
 
 export interface RedeemablePaymentsAppExtensionDeployConfigType extends BasePaymentsAppExtensionDeployConfigType {
   // BuyerLabelSchema
@@ -35,7 +37,7 @@ export interface RedeemablePaymentsAppExtensionDeployConfigType extends BasePaym
 
   // Redeemable-specific fields
   balance_url: string
-  redeemable_type: 'gift-card'
+  redeemable_type: string
   ui_extension_registration_uuid?: string
   ui_extension_handle?: string
   checkout_payment_method_fields?: {
@@ -60,10 +62,10 @@ export function redeemableDeployConfigToCLIConfig(
     merchant_label: config.merchant_label,
     supported_countries: config.supported_countries,
     supported_payment_methods: config.supported_payment_methods,
+    supported_buyer_contexts: config.supported_buyer_contexts,
     test_mode_available: config.test_mode_available,
     buyer_label: config.default_buyer_label,
     buyer_label_translations: config.buyer_label_to_locale,
-    redeemable_type: config.redeemable_type,
     balance_url: config.balance_url,
     checkout_payment_method_fields: config.checkout_payment_method_fields?.map((field) => ({
       key: field.key,
@@ -77,6 +79,8 @@ export function redeemableDeployConfigToCLIConfig(
 export async function redeemablePaymentsAppExtensionDeployConfig(
   config: RedeemablePaymentsAppExtensionConfigType,
 ): Promise<{[key: string]: unknown} | undefined> {
+  const redeemableType = config.supported_payment_methods[0] === 'gift-card' ? 'gift_card' : null
+
   return {
     api_version: config.api_version,
     start_payment_session_url: config.payment_session_url,
@@ -86,11 +90,12 @@ export async function redeemablePaymentsAppExtensionDeployConfig(
     merchant_label: config.merchant_label,
     supported_countries: config.supported_countries,
     supported_payment_methods: config.supported_payment_methods,
+    supported_buyer_contexts: config.supported_buyer_contexts,
     test_mode_available: config.test_mode_available,
     default_buyer_label: config.buyer_label,
     buyer_label_to_locale: config.buyer_label_translations,
-    redeemable_type: config.redeemable_type,
     balance_url: config.balance_url,
+    redeemable_type: redeemableType,
     checkout_payment_method_fields: config.checkout_payment_method_fields,
     ui_extension_handle: config.ui_extension_handle,
   }

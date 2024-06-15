@@ -7,6 +7,7 @@ import {findOrSelectTheme} from '../../utilities/theme-selector.js'
 import {showEmbeddedCLIWarning} from '../../utilities/embedded-cli-warning.js'
 import {Flags} from '@oclif/core'
 import {globalFlags} from '@shopify/cli-kit/node/cli'
+import {Theme} from '@shopify/cli-kit/node/themes/types'
 
 export default class Dev extends ThemeCommand {
   static summary =
@@ -71,7 +72,8 @@ You can run this command only in a directory that matches the [default Shopify t
     }),
     nodelete: Flags.boolean({
       char: 'n',
-      description: 'Runs the dev command without deleting local files.',
+      description:
+        'Prevents files from being deleted in the remote theme when a file has been deleted locally. This applies to files that are deleted while the command is running, and files that have been deleted locally before the command is run.',
       env: 'SHOPIFY_FLAG_NODELETE',
     }),
     only: Flags.string({
@@ -110,6 +112,11 @@ You can run this command only in a directory that matches the [default Shopify t
       env: 'SHOPIFY_FLAG_OPEN',
       default: false,
     }),
+    'dev-preview': Flags.boolean({
+      hidden: true,
+      description: 'Enables the developer preview for the upcoming `theme dev` implementation.',
+      env: 'SHOPIFY_FLAG_BETA',
+    }),
   }
 
   static cli2Flags = [
@@ -138,16 +145,19 @@ You can run this command only in a directory that matches the [default Shopify t
 
     let {flags} = await this.parse(Dev)
     const store = ensureThemeStore(flags)
+    const {ignore = [], only = []} = flags
 
     const {adminSession, storefrontToken} = await refreshTokens(store, flags.password)
 
+    let theme: Theme
+
     if (flags.theme) {
       const filter = {filter: {theme: flags.theme}}
-      const theme = await findOrSelectTheme(adminSession, filter)
+      theme = await findOrSelectTheme(adminSession, filter)
 
       flags = {...flags, theme: theme.id.toString()}
     } else {
-      const theme = await new DevelopmentThemeManager(adminSession).findOrCreate()
+      theme = await new DevelopmentThemeManager(adminSession).findOrCreate()
       const overwriteJson = flags['theme-editor-sync'] && theme.createdAtRuntime
 
       flags = {...flags, theme: theme.id.toString(), 'overwrite-json': overwriteJson}
@@ -161,12 +171,17 @@ You can run this command only in a directory that matches the [default Shopify t
       directory: flags.path,
       store,
       password: flags.password,
-      theme: flags.theme!,
+      theme,
       host: flags.host,
       port: flags.port,
       force: flags.force,
       open: flags.open,
       flagsToPass,
+      'dev-preview': flags['dev-preview'],
+      'theme-editor-sync': flags['theme-editor-sync'],
+      noDelete: flags.nodelete,
+      ignore,
+      only,
     })
   }
 }

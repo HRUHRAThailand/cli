@@ -3,10 +3,10 @@ import ConfigLink from './commands/app/config/link.js'
 import ConfigUse from './commands/app/config/use.js'
 import Deploy from './commands/app/deploy.js'
 import Dev from './commands/app/dev.js'
-import DraftExtensionsPush from './commands/app/draft-extensions/push.js'
 import EnvPull from './commands/app/env/pull.js'
 import EnvShow from './commands/app/env/show.js'
 import FunctionBuild from './commands/app/function/build.js'
+import FunctionReplay from './commands/app/function/replay.js'
 import FunctionRun from './commands/app/function/run.js'
 import FetchSchema from './commands/app/function/schema.js'
 import FunctionTypegen from './commands/app/function/typegen.js'
@@ -19,8 +19,11 @@ import Release from './commands/app/release.js'
 import VersionsList from './commands/app/versions/list.js'
 import WebhookTrigger from './commands/app/webhook/trigger.js'
 import WebhookTriggerDeprecated from './commands/webhook/trigger.js'
+import init from './hooks/clear_command_cache.js'
+import gatherPublicMetadata from './hooks/public_metadata.js'
+import gatherSensitiveMetadata from './hooks/sensitive_metadata.js'
 
-const APP_COMMANDS = {
+export const commands = {
   'app:build': Build,
   'app:deploy': Deploy,
   'app:dev': Dev,
@@ -30,11 +33,11 @@ const APP_COMMANDS = {
   'app:release': Release,
   'app:config:link': ConfigLink,
   'app:config:use': ConfigUse,
-  'app:draft-extensions:push': DraftExtensionsPush,
   'app:env:pull': EnvPull,
   'app:env:show': EnvShow,
   'app:generate:schema': GenerateSchema,
   'app:function:build': FunctionBuild,
+  'app:function:replay': FunctionReplay,
   'app:function:run': FunctionRun,
   'app:function:schema': FetchSchema,
   'app:function:typegen': FunctionTypegen,
@@ -44,4 +47,6 @@ const APP_COMMANDS = {
   'webhook:trigger': WebhookTriggerDeprecated,
 }
 
-export default APP_COMMANDS
+export const AppSensitiveMetadataHook = gatherSensitiveMetadata
+export const AppInitHook = init
+export const AppPublicMetadataHook = gatherPublicMetadata
